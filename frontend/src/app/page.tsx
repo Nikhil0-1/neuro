@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import ThreeJSOrb from "@/components/ThreeJSOrb";
+import SignInButton from "@/components/SignInButton";
 import { MessageSquare, Zap, Shield, Sparkles } from "lucide-react";
 
 export default function LandingPage() {
@@ -41,7 +42,7 @@ export default function LandingPage() {
             <Link href="#demo" className="hover:text-white transition-colors">Demo</Link>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/login" className="text-sm font-medium hover:text-white text-gray-300 transition-colors">Log in</Link>
+            <SignInButton />
             <Link href="/chat" className="px-5 py-2 rounded-full bg-gradient-to-r from-[#8b5cf6] to-[#3b82f6] text-white font-medium text-sm button-glow hover:scale-105 transition-transform duration-300">
               Launch App
             </Link>

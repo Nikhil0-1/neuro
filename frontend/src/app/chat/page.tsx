@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import Sidebar from '@/components/Sidebar';
 import ChatWindow from '@/components/ChatWindow';
+import { useAuth } from '@/lib/AuthContext';
 
 // Simulated DB logic for frontend until full backend connect
 type Message = { role: 'user' | 'assistant' | 'system'; content: string };
@@ -19,6 +21,15 @@ export default function ChatPage() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [isStreaming, setIsStreaming] = useState(false);
     const [socket, setSocket] = useState<Socket | null>(null);
+
+    const { user, loading } = useAuth();
+    const router = useRouter();
+
+    useEffect(() => {
+        if (!loading && !user) {
+            router.push('/');
+        }
+    }, [user, loading, router]);
 
     useEffect(() => {
         // Connect to actual backend when ready, or fallback to mock
@@ -69,6 +80,14 @@ export default function ChatPage() {
         setActiveChatId(newId);
         setMessages([]);
     };
+
+    if (loading || !user) {
+        return (
+            <div className="flex h-screen w-full bg-[#09090b] text-white items-center justify-center">
+                <div className="w-10 h-10 border-4 border-[#8b5cf6] border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex h-screen w-full bg-[#09090b] text-white overflow-hidden selection:bg-neon-purple/30">
