@@ -1,6 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getAnalytics, isSupported } from "firebase/analytics";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -17,15 +16,5 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-
-// Analytics is only available in the browser
-export let analytics: any = null;
-if (typeof window !== "undefined") {
-    isSupported().then((supported: boolean) => {
-        if (supported) {
-            analytics = getAnalytics(app);
-        }
-    });
-}
 
 export default app;

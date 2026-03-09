@@ -1,83 +1,117 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import Sidebar from '@/components/Sidebar';
 import ChatWindow from '@/components/ChatWindow';
 import { useAuth } from '@/lib/AuthContext';
+import { useRouter } from 'next/navigation';
 
-// Simulated DB logic for frontend until full backend connect
 type Message = { role: 'user' | 'assistant' | 'system'; content: string };
 type Chat = { id: string; title: string };
 
-export default function ChatPage() {
-    const [sidebarOpen, setSidebarOpen] = useState(true);
-    const [chats, setChats] = useState<Chat[]>([
-        { id: '1', title: 'React Performance Tips' },
-        { id: '2', title: 'Next.js 14 App Router' },
-    ]);
-    const [activeChatId, setActiveChatId] = useState<string | null>('1');
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [isStreaming, setIsStreaming] = useState(false);
-    const [socket, setSocket] = useState<Socket | null>(null);
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
+export default function ChatPage() {
     const { user, loading } = useAuth();
     const router = useRouter();
 
+    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [chats, setChats] = useState<Chat[]>([]);
+    const [activeChatId, setActiveChatId] = useState<string | null>(null);
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [isStreaming, setIsStreaming] = useState(false);
+    const socketRef = useRef<Socket | null>(null);
+
+    // Redirect if not logged in
     useEffect(() => {
         if (!loading && !user) {
             router.push('/');
         }
     }, [user, loading, router]);
 
+    // Connect to backend WebSocket
     useEffect(() => {
-        // Connect to actual backend when ready, or fallback to mock
-        // const newSocket = io('http://localhost:5000');
-        // setSocket(newSocket);
-        // return () => { newSocket.close(); };
-    }, []);
+        if (!user) return;
+
+        const socket = io(BACKEND_URL, { transports: ['websocket'] });
+        socketRef.current = socket;
+
+        socket.on('connect', () => {
+            console.log('✅ Connected to NeuroChat backend');
+        });
+
+        // Receive streaming chunks
+        socket.on('messageChunk', ({ content }: { chatId: string; content: string }) => {
+            setMessages(prev => {
+                const updated = [...prev];
+                const lastMsg = updated[updated.length - 1];
+                if (lastMsg && lastMsg.role === 'assistant') {
+                    lastMsg.content += content;
+                    return [...updated];
+                }
+                return [...updated, { role: 'assistant', content }];
+            });
+        });
+
+        // Stream complete
+        socket.on('messageComplete', ({ chatId }: { chatId: string }) => {
+            setIsStreaming(false);
+            // Update active chat ID if this was a new chat
+            if (!activeChatId) {
+                setActiveChatId(chatId);
+                setChats(prev => {
+                    if (!prev.find(c => c.id === chatId)) {
+                        return [{ id: chatId, title: 'New Chat' }, ...prev];
+                    }
+                    return prev;
+                });
+            }
+        });
+
+        // Handle errors
+        socket.on('error', ({ message }: { message: string }) => {
+            setIsStreaming(false);
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: `⚠️ ${message}`
+            }]);
+        });
+
+        return () => {
+            socket.disconnect();
+        };
+    }, [user]);
 
     const handleSendMessage = (content: string) => {
-        // Add user message immediately
+        if (!content.trim() || isStreaming) return;
+
         const userMsg: Message = { role: 'user', content };
-        setMessages(prev => [...prev, userMsg]);
+        setMessages(prev => [...prev, userMsg, { role: 'assistant', content: '' }]);
         setIsStreaming(true);
 
-        // If socket is connected, emit to server. Otherwise use mock for demo
-        if (socket) {
-            socket.emit('sendMessage', { chatId: activeChatId, message: content, userId: 'demo' });
+        if (socketRef.current?.connected) {
+            socketRef.current.emit('sendMessage', {
+                chatId: activeChatId,
+                message: content,
+                userId: user?.uid || 'guest'
+            });
         } else {
-            // Mock streaming effect for UI demonstration
+            // Fallback mock for offline mode
             setTimeout(() => {
-                let streamString = "This is a streaming response from NeuroChat AI evaluating the context of your message: " + content;
-                let index = 0;
-                let tempContent = "";
-
-                // Add empty assistant message
-                setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
-
-                const interval = setInterval(() => {
-                    tempContent += streamString.charAt(index);
-                    setMessages(prev => {
-                        const newMessages = [...prev];
-                        newMessages[newMessages.length - 1].content = tempContent;
-                        return newMessages;
-                    });
-                    index++;
-                    if (index >= streamString.length) {
-                        clearInterval(interval);
-                        setIsStreaming(false);
-                    }
-                }, 50);
+                const response = "⚠️ Backend not connected. Please make sure the backend server is running on port 5000.";
+                setMessages(prev => {
+                    const updated = [...prev];
+                    updated[updated.length - 1].content = response;
+                    return updated;
+                });
+                setIsStreaming(false);
             }, 500);
         }
     };
 
     const handleNewChat = () => {
-        const newId = Date.now().toString();
-        setChats([{ id: newId, title: 'New Chat' }, ...chats]);
-        setActiveChatId(newId);
+        setActiveChatId(null);
         setMessages([]);
     };
 
@@ -99,11 +133,7 @@ export default function ChatPage() {
                 activeChatId={activeChatId}
                 onSelectChat={(id) => {
                     setActiveChatId(id);
-                    // In a real app, fetch message history based on chat ID here
-                    setMessages([
-                        { role: 'user', content: `Loading history for chat ${id}...` },
-                        { role: 'assistant', content: `Here is the history for chat ${id}.` }
-                    ]);
+                    setMessages([]);
                 }}
             />
             <ChatWindow
