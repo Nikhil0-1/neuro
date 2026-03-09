@@ -1,7 +1,14 @@
 import type { NextConfig } from "next";
 
+const isProd = process.env.NODE_ENV === "production";
+
 const nextConfig: NextConfig = {
-  /* Normal Next.js configuration - no static export */
+  output: "export",
+  basePath: isProd ? "/neuro" : "",
+  assetPrefix: isProd ? "/neuro/" : "",
+  images: {
+    unoptimized: true,
+  },
 };
 
 export default nextConfig;
