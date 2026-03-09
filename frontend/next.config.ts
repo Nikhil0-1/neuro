@@ -1,11 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "export",
-  basePath: "/neuro",
-  images: {
-    unoptimized: true,
-  },
+  /* Normal Next.js configuration - no static export */
 };
 
 export default nextConfig;
